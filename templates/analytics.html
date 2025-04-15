@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fall Armyworm Detection Analytics - Uganda</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+        }
+        
+        .header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        
+        .nav-links {
+            margin-top: 10px;
+        }
+        
+        .nav-links a {
+            color: white;
+            margin: 0 10px;
+            text-decoration: none;
+        }
+        
+        .nav-links a:hover {
+            text-decoration: underline;
+        }
+        
+        .visualization-container {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .charts-row {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            gap: 20px;
+        }
+        
+        .chart-container {
+            flex: 1 1 calc(50% - 20px);
+            min-width: 250px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 15px;
+            position: relative;
+            height: 300px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        .chart-wrapper {
+            position: relative;
+            width: 100%;
+            height: calc(100% - 40px);
+        }
+        
+        canvas {
+            display: block !important;
+            width: 100% !important;
+            height: 100% !important;
+        }
+        
+        .filter-panel {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .filter-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .filter-group {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .filter-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        .filter-group select, .filter-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .filter-button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        
+        .filter-button:hover {
+            background-color: #45a049;
+        }
+        
+        .summary-stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            flex: 1;
+            min-width: 150px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        /* Mobile-specific adjustments */
+        @media (max-width: 768px) {
+            .chart-container {
+                flex: 1 1 100%;
+                height: 280px;
+            }
+            
+            .filter-group {
+                flex: 1 1 100%;
+            }
+            
+            .stat-card {
+                flex: 1 1 calc(50% - 15px);
+            }
+            
+            /* Disable animations on mobile */
+            .chart-container canvas {
+                animation: none !important;
+                transition: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Fall Armyworm Detection Analytics - Uganda</h1>
+        <div class="nav-links">
+            <a href="/">Map View</a>
+            <a href="/analytics" class="active">Analytics</a>
+        </div>
+    </div>
+    
+    <div class="visualization-container">
+        <div class="filter-panel">
+            <h3>Filter Data</h3>
+            <div class="filter-controls">
+                <div class="filter-group">
+                    <label for="district-filter">District</label>
+                    <select id="district-filter">
+                        <option value="">All Districts</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="class-filter">Detection Type</label>
+                    <select id="class-filter">
+                        <option value="">All Types</option>
+                        <option value="fall-armyworm-larval-damage">Larval Damage</option>
+                        <option value="fall-armyworm-egg">Eggs</option>
+                        <option value="fall-armyworm-frass">Frass</option>
+                        <option value="healthy-maize">Healthy Maize</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="time-filter">Time Period</label>
+                    <select id="time-filter">
+                        <option value="7">Last 7 days</option>
+                        <option value="30" selected>Last 30 days</option>
+                        <option value="90">Last 90 days</option>
+                        <option value="365">Last year</option>
+                    </select>
+                </div>
+            </div>
+            <button id="apply-filter" class="filter-button">Apply Filters</button>
+        </div>
+        
+        <div class="summary-stats">
+            <div class="stat-card">
+                <div class="stat-value" id="total-detections">0</div>
+                <div class="stat-label">Total Detections</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="districts-affected">0</div>
+                <div class="stat-label">Districts Affected</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="infestation-rate">0%</div>
+                <div class="stat-label">Infestation Rate</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="recent-trend">-</div>
+                <div class="stat-label">Recent Trend</div>
+            </div>
+        </div>
+        
+        <div class="charts-row">
+            <div class="chart-container">
+                <h3>Detection Trends Over Time</h3>
+                <div class="chart-wrapper">
+                    <canvas id="timeSeriesChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h3>Detection Types Distribution</h3>
+                <div class="chart-wrapper">
+                    <canvas id="detectionPieChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="charts-row">
+            <div class="chart-container">
+                <h3>Top Districts by Detection Count</h3>
+                <div class="chart-wrapper">
+                    <canvas id="districtBarChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h3>Detection Types by District</h3>
+                <div class="chart-wrapper">
+                    <canvas id="districtClassChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Chart objects
+        let timeSeriesChart = null;
+        let detectionPieChart = null;
+        let districtBarChart = null;
+        let districtClassChart = null;
+        
+        // Color mapping for consistent colors across charts
+        const colorMap = {
+            'fall-armyworm-larval-damage': 'rgba(255, 99, 132, 0.8)',
+            'fall-armyworm-egg': 'rgba(255, 159, 64, 0.8)',
+            'fall-armyworm-frass': 'rgba(255, 205, 86, 0.8)',
+            'healthy-maize': 'rgba(75, 192, 192, 0.8)',
+            'unknown': 'rgba(201, 203, 207, 0.8)'
+        };
+        
+        // Border colors (slightly darker)
+        const borderColorMap = {
+            'fall-armyworm-larval-damage': 'rgb(255, 99, 132)',
+            'fall-armyworm-egg': 'rgb(255, 159, 64)',
+            'fall-armyworm-frass': 'rgb(255, 205, 86)',
+            'healthy-maize': 'rgb(75, 192, 192)',
+            'unknown': 'rgb(201, 203, 207)'
+        };
+        
+        // Function to fetch analytics data
+        async function fetchAnalyticsData() {
+            try {
+                // Get filter values
+                const districtFilter = document.getElementById('district-filter').value;
+                const classFilter = document.getElementById('class-filter').value;
+                const timeFilter = document.getElementById('time-filter').value;
+                
+                // Build query parameters
+                let queryParams = `days=${timeFilter}`;
+                if (classFilter) queryParams += `&class=${classFilter}`;
+                if (districtFilter) queryParams += `&district=${districtFilter}`;
+                
+                // Fetch data
+                const response = await fetch(`/analytics_data?${queryParams}`);
+                const data = await response.json();
+                
+                // Update charts and stats
+                updateSummaryStats(data);
+                updateCharts(data);
+            } catch (error) {
+                console.error('Error fetching analytics data:', error);
+            }
+        }
+        
+        // Function to update summary statistics
+        function updateSummaryStats(data) {
+            // Total detections
+            document.getElementById('total-detections').textContent = data.total_detections || 0;
+            
+            // Districts affected
+            document.getElementById('districts-affected').textContent = data.districts_affected || 0;
+            
+            // Infestation rate (excluding healthy maize)
+            const infestationRate = data.infestation_rate || 0;
+            document.getElementById('infestation-rate').textContent = `${infestationRate.toFixed(1)}%`;
+            
+            // Recent trend
+            const trendValue = data.recent_trend || 0;
+            const trendElement = document.getElementById('recent-trend');
+            
+            if (trendValue > 0) {
+                trendElement.textContent = `↑ ${trendValue.toFixed(1)}%`;
+                trendElement.style.color = '#ff4d4d';
+            } else if (trendValue < 0) {
+                trendElement.textContent = `↓ ${Math.abs(trendValue).toFixed(1)}%`;
+                trendElement.style.color = '#4CAF50';
+            } else {
+                trendElement.textContent = 'Stable';
+                trendElement.style.color = '#888';
+            }
+        }
+        
+        // Function to prepare time series data
+        function prepareTimeSeriesData(data) {
+            const timeData = data.time_series || {};
+            const labels = timeData.labels || [];
+            const datasets = [];
+            
+            // Create a dataset for each detection class
+            const classes = ['fall-armyworm-larval-damage', 'fall-armyworm-egg', 'fall-armyworm-frass', 'healthy-maize', 'unknown'];
+            
+            classes.forEach(className => {
+                if (timeData[className]) {
+                    datasets.push({
+                        label: className.replace(/-/g, ' '),
+                        data: timeData[className],
+                        backgroundColor: colorMap[className],
+                        borderColor: borderColorMap[className],
+                        borderWidth: 1,
+                        tension: 0.1
+                    });
+                }
+            });
+            
+            return {
+                labels: labels,
+                datasets: datasets
+            };
+        }
+        
+        // Function to prepare pie chart data
+        function prepareClassDistributionData(data) {
+            const classData = data.class_distribution || {};
+            const labels = [];
+            const dataValues = [];
+            const backgroundColors = [];
+            const borderColors = [];
+            
+            for (const className in classData) {
+                if (classData[className] > 0) {
+                    labels.push(className.replace(/-/g, ' '));
+                    dataValues.push(classData[className]);
+                    backgroundColors.push(colorMap[className]);
+                    borderColors.push(borderColorMap[className]);
+                }
+            }
+            
+            return {
+                labels: labels,
+                datasets: [{
+                    data: dataValues,
+                    backgroundColor: backgroundColors,
+                    borderColor: borderColors,
+                    borderWidth: 1
+                }]
+            };
+        }
+        
+        // Function to prepare district bar chart data
+        function prepareDistrictData(data) {
+            const districtData = data.district_counts || {};
+            
+            // Sort districts by count (descending)
+            const sortedDistricts = Object.entries(districtData)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10); // Top 10 districts
+            
+            const labels = sortedDistricts.map(item => item[0]);
+            const dataValues = sortedDistricts.map(item => item[1]);
+            
+            return {
+                labels: labels,
+                datasets: [{
+                    label: 'Detection Count',
+                    data: dataValues,
+                    backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                    borderColor: 'rgb(54, 162, 235)',
+                    borderWidth: 1
+                }]
+            };
+        }
+        
+        // Function to prepare district-class chart data
+        function prepareDistrictClassData(data) {
+            const districtClassData = data.district_class_data || {};
+            
+            // Get top 5 districts by total count
+            const districtTotals = {};
+            for (const district in districtClassData) {
+                districtTotals[district] = Object.values(districtClassData[district]).reduce((a, b) => a + b, 0);
+            }
+            
+            const topDistricts = Object.entries(districtTotals)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5)
+                .map(item => item[0]);
+            
+            // Prepare datasets for each class
+            const classes = ['fall-armyworm-larval-damage', 'fall-armyworm-egg', 'fall-armyworm-frass', 'healthy-maize', 'unknown'];
+            const datasets = [];
+            
+            classes.forEach(className => {
+                const data = topDistricts.map(district => {
+                    return districtClassData[district] && districtClassData[district][className] 
+                        ? districtClassData[district][className] 
+                        : 0;
+                });
+                
+                if (data.some(value => value > 0)) {
+                    datasets.push({
+                        label: className.replace(/-/g, ' '),
+                        data: data,
+                        backgroundColor: colorMap[className],
+                        borderColor: borderColorMap[className],
+                        borderWidth: 1
+                    });
+                }
+            });
+            
+            return {
+                labels: topDistricts,
+                datasets: datasets
+            };
+        }
+        
+        // Function to create and update charts
+        function updateCharts(data) {
+            // Prepare data for time series chart
+            const timeData = prepareTimeSeriesData(data);
+            updateTimeSeriesChart(timeData);
+            
+            // Prepare data for pie chart
+            const pieData = prepareClassDistributionData(data);
+            updatePieChart(pieData);
+            
+            // Prepare data for district bar chart
+            const districtData = prepareDistrictData(data);
+            updateDistrictBarChart(districtData);
+            
+            // Prepare data for district-class chart
+            const districtClassData = prepareDistrictClassData(data);
+            updateDistrictClassChart(districtClassData);
+        }
+        
+        // Update time series chart
+        function updateTimeSeriesChart(data) {
+            const ctx = document.getElementById('timeSeriesChart').getContext('2d');
+            
+            if (timeSeriesChart) {
+                timeSeriesChart.destroy();
+            }
+            
+            // For mobile, simplify the chart
+            if (window.innerWidth <= 768 && data.labels.length > 7) {
+                const skipFactor = Math.ceil(data.labels.length / 7);
+                const filteredLabels = data.labels.filter((_, i) => i % skipFactor === 0);
+                
+                const simplifiedDatasets = data.datasets.map(dataset => ({
+                    ...dataset,
+                    data: dataset.data.filter((_, i) => i % skipFactor === 0)
+                }));
+                
+                data = {
+                    labels: filteredLabels,
+                    datasets: simplifiedDatasets
+                };
+            }
+            
+            timeSeriesChart = new Chart(ctx, {
+                type: 'line',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: window.innerWidth <= 768 ? 0 : 1000, // Disable animation on mobile
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                boxWidth: 12,
+                                font: {
+                                    size: window.innerWidth < 768 ? 10 : 12
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Update pie chart
+        function updatePieChart(data) {
+            const ctx = document.getElementById('detectionPieChart').getContext('2d');
+            
+            if (detectionPieChart) {
+                detectionPieChart.destroy();
+            }
+            
+            detectionPieChart = new Chart(ctx, {
+                type: 'pie',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: window.innerWidth <= 768 ? 0 : 1000, // Disable animation on mobile
+                    },
+                    plugins: {
+                        legend: {
+                            position: window.innerWidth < 768 ? 'bottom' : 'right'
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Update district bar chart
+        function updateDistrictBarChart(data) {
+            const ctx = document.getElementById('districtBarChart').getContext('2d');
+            
+            if (districtBarChart) {
+                districtBarChart.destroy();
+            }
+            
+            districtBarChart = new Chart(ctx, {
+                type: 'bar',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: window.innerWidth <= 768 ? 0 : 1000, // Disable animation on mobile
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Update district-class chart
+        function updateDistrictClassChart(data) {
+            const ctx = document.getElementById('districtClassChart').getContext('2d');
+            
+            if (districtClassChart) {
+                districtClassChart.destroy();
+            }
+            
+            districtClassChart = new Chart(ctx, {
+                type: 'bar',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: window.innerWidth <= 768 ? 0 : 1000, // Disable animation on mobile
+                    },
+                    plugins: {
+                        legend: {
+                            position: window.innerWidth < 768 ? 'bottom' : 'top'
+                        }
+                    },
+                    scales: {
+                        x: {
+                            stacked: true,
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        },
+                        y: {
+                            stacked: true
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Load district options for filter
+        async function loadDistrictOptions() {
+            try {
+                const response = await fetch('/uganda_districts');
+                const districts = await response.json();
+                
+                const districtSelect = document.getElementById('district-filter');
+                districtSelect.innerHTML = '<option value="">All Districts</option>';
+                
+                districts.forEach(district => {
+                    const option = document.createElement('option');
+                    option.value = district;
+                    option.textContent = district;
+                    districtSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading districts:', error);
+            }
+        }
+        
+        // Handle window resize with debounce
+        let resizeTimer;
+        window.addEventListener('resize', function() {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(function() {
+                // Force a redraw of all canvases first
+                document.querySelectorAll('canvas').forEach(canvas => {
+                    canvas.style.display = 'none';
+                    canvas.offsetHeight; // Trigger reflow
+                    canvas.style.display = 'block';
+                });
+                
+                // Then fetch data again to update charts
+                fetchAnalyticsData();
+            }, 250);
+        });
+        
+        // Add event listener to the filter button
+        document.getElementById('apply-filter').addEventListener('click', fetchAnalyticsData);
+        
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDistrictOptions();
+            fetchAnalyticsData();
+        });
+    </script>
+</body>
+</html>
+
